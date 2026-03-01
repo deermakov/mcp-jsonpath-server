@@ -303,14 +303,14 @@ def create_app(server: MCPJSONPathServer) -> Starlette:
     async def handle_resources(request: Request):
         """Обработка запросов ресурсов"""
         if request.method == "GET":
-            resources = await server.list_resources()
+            resources = server._list_resources()
             return JSONResponse([r.model_dump() for r in resources])
         elif request.method == "POST":
             # Обработка запросов на чтение ресурсов
             data = await request.json()
             uri = data.get("uri")
             if uri:
-                content = await server.read_resource(uri)
+                content = server._read_resource(uri)
                 return JSONResponse({"content": content})
         return JSONResponse({"error": "Method not allowed"}, status_code=405)
 
