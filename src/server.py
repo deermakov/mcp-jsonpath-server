@@ -289,15 +289,15 @@ def create_app(server: MCPJSONPathServer) -> Starlette:
 
     async def handle_messages(request: Request):
         """Обработка сообщений через SSE"""
-        async with sse_transport.connect_client(
+        async with sse_transport.connect_sse(
             request.scope,
             request.receive,
             request._send,
         ) as streams:
-            await server.run(
+            await server.server.run(
                 streams[0],
                 streams[1],
-                server.create_initialization_options(),
+                server.server.create_initialization_options(),
             )
 
     async def handle_resources(request: Request):
