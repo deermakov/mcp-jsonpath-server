@@ -44,7 +44,7 @@ except ImportError:
             ParseError = -32700
 
 from starlette.applications import Starlette
-from starlette.routing import Route
+from starlette.routing import Route, Mount
 from starlette.responses import StreamingResponse, JSONResponse, Response
 from starlette.requests import Request
 import jsonpath_ng
@@ -295,10 +295,10 @@ def create_app(server: MCPJSONPathServer) -> Starlette:
     logger.info(f"create_app")
     sse_transport = SseServerTransport("/messages")
 
-    async def handle_messages(request: Request):
+    async def handle_sse(request: Request):
         """Обработка сообщений через SSE"""
 
-        logger.info(f"handle_messages")
+        logger.info(f"handle_sse")
         # Логируем заголовки
         logger.info(f"Headers: {dict(request.headers)}")
 
@@ -339,8 +339,9 @@ def create_app(server: MCPJSONPathServer) -> Starlette:
 
     app = Starlette(
         routes=[
-            Route("/messages", endpoint=handle_messages, methods=["GET", "POST"]),
+            Route("/sse", endpoint=handle_sse, methods=["GET", "POST"]),
             Route("/resources", endpoint=handle_resources, methods=["GET", "POST"]),
+            Mount("/messages/", app=sse_transport.handle_post_message),
         ]
     )
 
