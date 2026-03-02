@@ -45,7 +45,7 @@ except ImportError:
 
 from starlette.applications import Starlette
 from starlette.routing import Route
-from starlette.responses import StreamingResponse, JSONResponse
+from starlette.responses import StreamingResponse, JSONResponse, Response
 from starlette.requests import Request
 import jsonpath_ng
 import jsonpath_ng.ext
@@ -77,6 +77,7 @@ class MCPJSONPathServer:
     """Сервер MCP для работы с JSON-файлами"""
 
     def __init__(self, name: str = "jsonpath-server"):
+        logger.info(f"__init__")
         self.name = name
         self.server = Server(name)
         self._setup_tools()
@@ -85,21 +86,25 @@ class MCPJSONPathServer:
 
     def _setup_tools(self) -> None:
         """Настройка инструментов MCP"""
+        logger.info(f"_setup_tools")
         self.server.list_tools_handler = self._list_tools
         self.server.call_tool_handler = self._call_tool
 
     def _setup_prompts(self) -> None:
         """Настройка промптов MCP"""
+        logger.info(f"_setup_prompts")
         self.server.list_prompts_handler = self._list_prompts
         self.server.get_prompt_handler = self._get_prompt
 
     def _setup_resources(self) -> None:
         """Настройка ресурсов MCP"""
+        logger.info(f"_setup_resources")
         self.server.list_resources_handler = self._list_resources
         self.server.read_resource_handler = self._read_resource
 
     def _list_tools(self) -> List[Tool]:
         """Возвращает список доступных инструментов"""
+        logger.info(f"_list_tools")
         tools = [
             Tool(
                 name="read_json",
@@ -137,6 +142,7 @@ class MCPJSONPathServer:
 
     def _read_json(self, arguments: Dict[str, Any]) -> List[TextContent]:
         """Чтение данных из JSON-файла по JSONPath"""
+        logger.info(f"_read_json")
         file_path = arguments.get("file_path", "")
         json_path = arguments.get("json_path", "")
 
@@ -220,6 +226,7 @@ class MCPJSONPathServer:
 
     def _list_prompts(self) -> List[Prompt]:
         """Возвращает список доступных промптов"""
+        logger.info(f"_list_prompts")
         prompts = [
             Prompt(
                 name="read_json_help",
@@ -276,6 +283,7 @@ class MCPJSONPathServer:
 
     def _read_resource(self, uri: str) -> str:
         """Чтение ресурса"""
+        logger.info(f"_read_resource")
         raise JSONRPCError(
             code=JSONRPCErrorCode.MethodNotFound,
             message=f"Ресурс не найден: {uri}"
@@ -284,11 +292,23 @@ class MCPJSONPathServer:
 
 def create_app(server: MCPJSONPathServer) -> Starlette:
     """Создание Starlette приложения для SSE транспорта"""
-
+    logger.info(f"create_app")
     sse_transport = SseServerTransport("/messages")
 
     async def handle_messages(request: Request):
         """Обработка сообщений через SSE"""
+
+        logger.info(f"handle_messages")
+        # Логируем заголовки
+        logger.info(f"Headers: {dict(request.headers)}")
+
+        # Логируем параметры запроса (query params)
+        logger.info(f"Query Params: {dict(request.query_params)}")
+
+        # Логируем тело запроса
+        body = await request.body()
+        logger.info(f"Body: {body.decode('utf-8')}")
+
         async with sse_transport.connect_sse(
             request.scope,
             request.receive,
@@ -299,9 +319,12 @@ def create_app(server: MCPJSONPathServer) -> Starlette:
                 streams[1],
                 server.server.create_initialization_options(),
             )
+        # Return empty response to avoid NoneType error
+        return Response()
 
     async def handle_resources(request: Request):
         """Обработка запросов ресурсов"""
+        logger.info(f"handle_resources")
         if request.method == "GET":
             resources = server._list_resources()
             return JSONResponse([r.model_dump() for r in resources])
