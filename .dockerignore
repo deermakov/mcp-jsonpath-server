@@ -25,5 +25,10 @@ data/
 .DS_Store
 Thumbs.db
 
-# Environment
-.env.local
+# Тесты
+tests/
+test_*.py
+
+# Документация
+docs/
+*.md

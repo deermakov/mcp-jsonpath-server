@@ -1,27 +1,27 @@
+# Используем официальный Python образ
 FROM python:3.11-slim
 
-# Установка системных зависимостей
-RUN apt-get update && apt-get install -y \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
-
-# Установка Python зависимостей
+# Устанавливаем рабочую директорию
 WORKDIR /app
 
+# Копируем файл зависимостей
 COPY requirements.txt .
+
+# Устанавливаем зависимости
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Копирование исходного кода
-COPY src/ ./src/
+# Копируем код приложения
+COPY main.py .
 
-# Создание директории для логов
+# Создаем директорию для логов
 RUN mkdir -p /app/logs
 
-# Установка прав на директорию логов
-RUN chmod 755 /app/logs
+# Устанавливаем переменные окружения
+ENV PYTHONUNBUFFERED=1
+ENV LOG_LEVEL=INFO
 
-# Экспозиция порта
-EXPOSE 3000
+# Открываем порт (если нужно для внешнего доступа)
+# EXPOSE 8000
 
-# Запуск сервера
-CMD ["python", "src/server.py"]
+# Запускаем приложение
+CMD ["python", "main.py"]

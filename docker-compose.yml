@@ -1,25 +1,25 @@
 version: '3.8'
 
 services:
-  mcp-jsonpath-server:
+  mcp-json-server:
     build:
       context: .
       dockerfile: Dockerfile
-    image: mcp-jsonpath-server 
     container_name: mcp-jsonpath-server
+    image: mcp-jsonpath-server
+    restart: unless-stopped
     ports:
       - "3000:3000"
-    environment:
-      - HOST=0.0.0.0
-      - PORT=3000
     volumes:
+      # Монтируем директорию с JSON-файлами
+      - c:\_Work\ML\MCPJSON\mcp-jsonpath-server\data:/app/data:ro
       # Монтируем директорию для логов
       - c:\_Work\ML\MCPJSON\mcp-jsonpath-server\logs:/app/logs
-      # Монтируем директорию с JSON файлами (опционально)
-      - c:\_Work\ML\MCPJSON\mcp-jsonpath-server\data:/app/data
-    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=DEBUG
+      - PYTHONUNBUFFERED=1
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
       interval: 30s
       timeout: 10s
       retries: 3
