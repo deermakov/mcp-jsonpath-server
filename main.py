@@ -10,6 +10,8 @@ from typing import Any, Dict, Optional
 from pathlib import Path
 
 from fastmcp import FastMCP, settings
+from jsonpath_ng import parse
+from jsonpath_ng.ext import parse as ext_parse
 
 # Настройка логирования
 logging.basicConfig(
@@ -76,51 +78,18 @@ def get_json_path_value(data: Dict[str, Any], json_path: str) -> Any:
     logger.info(f"Запрос значения по jsonPath: {json_path}")
 
     try:
-        # Разбиваем jsonPath на части
-        parts = json_path.split('.')
-
-        current = data
-
-        for part in parts:
-            # Обработка массивов с индексами
-            if '[' in part and ']' in part:
-                # Разделяем имя поля и индекс
-                field_name = part.split('[')[0]
-                index_str = part.split('[')[1].split(']')[0]
-
-                if field_name not in current:
-                    logger.error(f"Поле не найдено: {field_name}")
-                    return None
-
-                current = current[field_name]
-
-                # Проверка, что это список
-                if not isinstance(current, list):
-                    logger.error(f"Элемент не является списком: {field_name}")
-                    return None
-
-                # Проверка индекса
-                try:
-                    index = int(index_str)
-                except ValueError:
-                    logger.error(f"Неверный индекс массива: {index_str}")
-                    return None
-
-                if index < 0 or index >= len(current):
-                    logger.error(f"Индекс вне диапазона: {index}")
-                    return None
-
-                current = current[index]
-            else:
-                # Обработка обычных полей
-                if part not in current:
-                    logger.error(f"Поле не найдено: {part}")
-                    return None
-
-                current = current[part]
-
+        # Используем jsonpath-ng для парсинга и поиска значения
+        jsonpath_expr = ext_parse(json_path)
+        matches = jsonpath_expr.find(data)
+        
+        if not matches:
+            logger.error(f"Значение не найдено по jsonPath: {json_path}")
+            return None
+        
+        # Возвращаем первое совпадение
+        result = matches[0].value
         logger.info(f"Успешно получено значение по jsonPath: {json_path}")
-        return current
+        return result
 
     except Exception as e:
         logger.error(f"Ошибка при получении значения по jsonPath {json_path}: {e}")
