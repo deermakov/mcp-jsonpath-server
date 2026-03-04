@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 from pathlib import Path
 
 from fastmcp import FastMCP, settings
+from fastmcp.server.middleware.response_limiting import ResponseLimitingMiddleware
 from jsonpath_ng import parse
 from jsonpath_ng.ext import parse as ext_parse
 
@@ -27,7 +28,10 @@ logger = logging.getLogger(__name__)
 # Создание MCP-сервера
 mcp = FastMCP("mcp-json")
 
-def load_json_file(file_path: str) -> Optional[Dict[str, Any]]:
+# Limit all tool responses to 500KB
+mcp.add_middleware(ResponseLimitingMiddleware(max_size=5_000_000))
+
+def load_json_file(file_path: str) -> Any:
     """
     Загружает JSON-файл по указанному пути
 
@@ -35,36 +39,37 @@ def load_json_file(file_path: str) -> Optional[Dict[str, Any]]:
         file_path: Путь к JSON-файлу
 
     Returns:
-        Словарь с данными из JSON или None при ошибке
+        Структурированный словарь с данными JSON файла
     """
-    logger.info(f"Попытка загрузки JSON-файла: {file_path}")
+    logger.info(f"load_json_file(): Попытка загрузки JSON-файла: {file_path}")
 
     try:
         # Проверка существования файла
         if not os.path.exists(file_path):
-            logger.error(f"Файл не существует: {file_path}")
+            logger.error(f"load_json_file(): Файл не существует: {file_path}")
             return None
 
         # Проверка, что это файл
         if not os.path.isfile(file_path):
-            logger.error(f"Указанный путь не является файлом: {file_path}")
+            logger.error(f"load_json_file(): Указанный путь не является файлом: {file_path}")
             return None
 
         # Чтение файла
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
-        logger.info(f"Успешно загружен JSON-файл: {file_path}, размер: {len(json.dumps(data))} байт")
+        logger.info(f"load_json_file(): Успешно загружен JSON-файл: {file_path}, размер: {len(json.dumps(data))} байт")
         return data
 
     except json.JSONDecodeError as e:
-        logger.error(f"Ошибка декодирования JSON в файле {file_path}: {e}")
-        return None
-    except Exception as e:
-        logger.error(f"Ошибка при чтении файла {file_path}: {e}")
+        logger.error(f"load_json_file(): Ошибка декодирования JSON в файле {file_path}: {e}")
         return None
 
-def get_json_path_value(data: Dict[str, Any], json_path: str) -> Any:
+    except Exception as e:
+        logger.error(f"load_json_file(): Ошибка при чтении файла {file_path}: {e}")
+        return None
+
+def get_json_path_value(data: Dict[str, Any], json_path: str) -> Dict[str, Any]:
     """
     Получает значение из JSON-данных по jsonPath
 
@@ -73,30 +78,47 @@ def get_json_path_value(data: Dict[str, Any], json_path: str) -> Any:
         json_path: Путь в формате jsonPath
 
     Returns:
-        Значение по указанному пути или None
+        Структурированный словарь с результатом поиска
     """
-    logger.info(f"Запрос значения по jsonPath: {json_path}")
+    logger.info(f"get_json_path_value(): Запрос значения по jsonPath: {json_path}")
 
     try:
+        # Нормализация jsonPath: если начинается с "data", заменяем на "$"
+        normalized_json_path = json_path
+        if json_path.startswith("data"):
+            normalized_json_path = "$" + json_path[4:]
+            logger.info(f"get_json_path_value(): Нормализация jsonPath: '{json_path}' -> '{normalized_json_path}'")
+        
         # Используем jsonpath-ng для парсинга и поиска значения
-        jsonpath_expr = ext_parse(json_path)
+        jsonpath_expr = ext_parse(normalized_json_path)
         matches = jsonpath_expr.find(data)
         
         if not matches:
-            logger.error(f"Значение не найдено по jsonPath: {json_path}")
-            return None
+            logger.error(f"get_json_path_value(): Значение не найдено по jsonPath: {json_path}")
+            return {
+                "data": None
+            }
         
         # Возвращаем массив всех совпадений
         result = [match.value for match in matches]
-        logger.info(f"Успешно получены значения по jsonPath: {json_path}, count: {len(result)}")
-        return result
+        logger.info(f"get_json_path_value(): Успешно получены значения по jsonPath: {json_path}, count: {len(result)}")
+        return {
+            "data": result
+        }
 
     except Exception as e:
-        logger.error(f"Ошибка при получении значения по jsonPath {json_path}: {e}")
-        return None
+        logger.error(f"get_json_path_value(): Ошибка при получении значения по jsonPath {json_path}: {e}")
+        return {
+            "data": None
+        }
 
-@mcp.tool()
-def read_json_file(file_path: str, json_path: Optional[str] = None) -> Any:
+@mcp.tool(output_schema={
+    "type": "object", 
+    "properties": {
+        "data": {"type": ["object", "array", "null"]}
+    }
+})
+def read_json_file(file_path: str, json_path: Optional[str] = None) -> dict:
     """
     Читает JSON-файл и возвращает данные по указанному jsonPath
 
@@ -106,42 +128,48 @@ def read_json_file(file_path: str, json_path: Optional[str] = None) -> Any:
                   (например, "user.name" или "items[0].price")
 
     Returns:
-        Словарь с результатом операции
+        Структурированный словарь с результатом операции
     """
-    logger.info(f"Запрос на чтение JSON-файла: {file_path}, jsonPath: {json_path}")
+    logger.info(f"read_json_file(): Запрос на чтение JSON-файла: {file_path}, jsonPath: {json_path}")
 
     try:
         # Загрузка JSON-файла
         data = load_json_file(file_path)
 
+        # Проверка на None (файл не найден/не является файлом/ошибка)
         if data is None:
-            return None
+            logger.error(f"read_json_file(): load_json_file вернул None для файла: {file_path}")
+            return {
+                "data": None
+            }
 
-        # Если jsonPath не указан, возвращаем все данные
+        # Если jsonPath не указан, возвращаем все данные как есть
         if json_path is None:
-            logger.info("jsonPath не указан, возвращаем все данные")
-            return data
+            logger.info(f"read_json_file(): jsonPath не указан, возвращаем загруженные данные (тип: {type(data).__name__})")
+            return {
+                "data": data
+            }
 
         # Получение значения по jsonPath
         result = get_json_path_value(data, json_path)
 
-        if result is None:
-            return None
+        if not result.get("success"):
+            return result
 
-        return result
+        # Добавляем метаданные к результату
+        return {
+            "data": data
+        }
 
     except Exception as e:
-        logger.error(f"Критическая ошибка при обработке запроса: {e}")
+        logger.error(f"read_json_file(): Критическая ошибка при обработке запроса: {e}")
         return {
-            "success": False,
-            "error": f"Критическая ошибка: {str(e)}",
-            "file_path": file_path,
-            "json_path": json_path
+            "data": None
         }
 
 
 @mcp.tool()
-def read_json_file_array_size(file_path: str, json_path: str) -> Any:
+def read_json_file_array_size(file_path: str, json_path: str) -> Dict[str, Any]:
     """
     Читает JSON-файл и возвращает размер массива по указанному jsonPath
 
@@ -150,33 +178,42 @@ def read_json_file_array_size(file_path: str, json_path: str) -> Any:
         json_path: Обязательный jsonPath для получения массива (например, "items" или "logs")
 
     Returns:
-        Словарь с результатом операции: {"array_size": N} или {"error": "..."}
+        Структурированный словарь с результатом операции: {"array_size": N} или {"error": "..."}
     """
-    logger.info(f"Запрос на получение размера массива из JSON-файла: {file_path}, jsonPath: {json_path}")
+    logger.info(f"read_json_file_array_size(): Запрос на получение размера массива из JSON-файла: {file_path}, jsonPath: {json_path}")
 
     try:
         # Вызываем read_json_file для получения данных
         result = read_json_file(file_path, json_path)
 
-        # Если результат - None или ошибка, возвращаем ошибку
-        if result is None or not isinstance(result, dict) or result.get("success") == False:
-            return None
+        # Проверяем успешность
+        if not result.get("data"):
+            return {
+                "success": False,
+                "data": None,
+                "error": result.get("error", "Неизвестная ошибка")
+            }
 
         # Проверяем, что результат - список (массив)
-        if isinstance(result, list):
-            array_size = len(result)
+        content = result.get("data")
+        if isinstance(content, list):
+            array_size = len(content)
             logger.info(f"Массив найден по jsonPath: {json_path}, размер массива: {array_size}")
-            return array_size
+            return {
+                "success": True,
+                "array_size": array_size
+            }
         else:
-            return None
+            return {
+                "success": False,
+                "error": f"Результат по jsonPath не является массивом, тип: {type(content).__name__}"
+            }
 
     except Exception as e:
-        logger.error(f"Критическая ошибка при обработке запроса: {e}")
+        logger.error(f"read_json_file_array_size(): Критическая ошибка при обработке запроса: {e}")
         return {
             "success": False,
-            "error": f"Критическая ошибка: {str(e)}",
-            "file_path": file_path,
-            "json_path": json_path
+            "error": f"Критическая ошибка: {str(e)}"
         }
 
 @mcp.tool()
