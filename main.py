@@ -86,9 +86,9 @@ def get_json_path_value(data: Dict[str, Any], json_path: str) -> Any:
             logger.error(f"Значение не найдено по jsonPath: {json_path}")
             return None
         
-        # Возвращаем первое совпадение
-        result = matches[0].value
-        logger.info(f"Успешно получено значение по jsonPath: {json_path}")
+        # Возвращаем массив всех совпадений
+        result = [match.value for match in matches]
+        logger.info(f"Успешно получены значения по jsonPath: {json_path}, count: {len(result)}")
         return result
 
     except Exception as e:
@@ -96,7 +96,7 @@ def get_json_path_value(data: Dict[str, Any], json_path: str) -> Any:
         return None
 
 @mcp.tool()
-def read_json_file(file_path: str, json_path: Optional[str] = None) -> Dict[str, Any]:
+def read_json_file(file_path: str, json_path: Optional[str] = None) -> Any:
     """
     Читает JSON-файл и возвращает данные по указанному jsonPath
 
@@ -115,39 +115,20 @@ def read_json_file(file_path: str, json_path: Optional[str] = None) -> Dict[str,
         data = load_json_file(file_path)
 
         if data is None:
-            return {
-                "success": False,
-                "error": "Не удалось загрузить JSON-файл",
-                "file_path": file_path
-            }
+            return None
 
         # Если jsonPath не указан, возвращаем все данные
         if json_path is None:
             logger.info("jsonPath не указан, возвращаем все данные")
-            return {
-                "success": True,
-                "data": data,
-                "file_path": file_path,
-                "path_used": None
-            }
+            return data
 
         # Получение значения по jsonPath
         result = get_json_path_value(data, json_path)
 
         if result is None:
-            return {
-                "success": False,
-                "error": "Не удалось получить значение по указанному jsonPath",
-                "file_path": file_path,
-                "json_path": json_path
-            }
+            return None
 
-        return {
-            "success": True,
-            "data": result,
-            "file_path": file_path,
-            "path_used": json_path
-        }
+        return result
 
     except Exception as e:
         logger.error(f"Критическая ошибка при обработке запроса: {e}")
