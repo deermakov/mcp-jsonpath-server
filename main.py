@@ -139,6 +139,46 @@ def read_json_file(file_path: str, json_path: Optional[str] = None) -> Any:
             "json_path": json_path
         }
 
+
+@mcp.tool()
+def read_json_file_array_size(file_path: str, json_path: str) -> Any:
+    """
+    Читает JSON-файл и возвращает размер массива по указанному jsonPath
+
+    Args:
+        file_path: Путь к JSON-файлу
+        json_path: Обязательный jsonPath для получения массива (например, "items" или "logs")
+
+    Returns:
+        Словарь с результатом операции: {"array_size": N} или {"error": "..."}
+    """
+    logger.info(f"Запрос на получение размера массива из JSON-файла: {file_path}, jsonPath: {json_path}")
+
+    try:
+        # Вызываем read_json_file для получения данных
+        result = read_json_file(file_path, json_path)
+
+        # Если результат - None или ошибка, возвращаем ошибку
+        if result is None or not isinstance(result, dict) or result.get("success") == False:
+            return None
+
+        # Проверяем, что результат - список (массив)
+        if isinstance(result, list):
+            array_size = len(result)
+            logger.info(f"Массив найден по jsonPath: {json_path}, размер массива: {array_size}")
+            return array_size
+        else:
+            return None
+
+    except Exception as e:
+        logger.error(f"Критическая ошибка при обработке запроса: {e}")
+        return {
+            "success": False,
+            "error": f"Критическая ошибка: {str(e)}",
+            "file_path": file_path,
+            "json_path": json_path
+        }
+
 @mcp.tool()
 def list_json_files(directory: str) -> Dict[str, Any]:
     """
