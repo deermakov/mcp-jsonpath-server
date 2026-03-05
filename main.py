@@ -66,10 +66,10 @@ def load_json_file(file_path: str) -> Any:
         return None
 
     except Exception as e:
-        logger.error(f"load_json_file(): Ошибка при чтении файла {file_path}: {e}")
+        logger.exception(f"load_json_file(): Ошибка при чтении файла {file_path}: {e}")
         return None
 
-def get_json_path_value(data: Dict[str, Any], json_path: str) -> Dict[str, Any]:
+def get_json_path_value(data: Dict[str, Any], json_path: str) -> Any:
     """
     Получает значение из JSON-данных по jsonPath
 
@@ -95,22 +95,17 @@ def get_json_path_value(data: Dict[str, Any], json_path: str) -> Dict[str, Any]:
         
         if not matches:
             logger.error(f"get_json_path_value(): Значение не найдено по jsonPath: {json_path}")
-            return {
-                "data": None
-            }
+            return None
         
         # Возвращаем массив всех совпадений
-        result = [match.value for match in matches]
+        # result = [match.value for match in matches] # возвращаем МАССИВ найденных результатов !
+        result = matches[0].value # возвращаем ПЕРВЫЙ из найденных результатов !
         logger.info(f"get_json_path_value(): Успешно получены значения по jsonPath: {json_path}, count: {len(result)}")
-        return {
-            "data": result
-        }
+        return result
 
     except Exception as e:
-        logger.error(f"get_json_path_value(): Ошибка при получении значения по jsonPath {json_path}: {e}")
-        return {
-            "data": None
-        }
+        logger.exception(f"get_json_path_value(): Ошибка при получении значения по jsonPath {json_path}: {e}")
+        return None
 
 @mcp.tool(output_schema={
     "type": "object", 
@@ -143,9 +138,9 @@ def read_json_file(file_path: str, json_path: Optional[str] = None) -> dict:
                 "data": None
             }
 
-        # Если jsonPath не указан, возвращаем все данные как есть
-        if json_path is None:
-            logger.info(f"read_json_file(): jsonPath не указан, возвращаем загруженные данные (тип: {type(data).__name__})")
+        # Если jsonPath не указан или является пустой строкой, возвращаем все данные как есть
+        if json_path is None or (isinstance(json_path, str) and json_path.strip() == ""):
+            logger.info(f"read_json_file(): jsonPath не указан или пустой, возвращаем загруженные данные (тип: {type(data).__name__})")
             return {
                 "data": data
             }
@@ -153,16 +148,13 @@ def read_json_file(file_path: str, json_path: Optional[str] = None) -> dict:
         # Получение значения по jsonPath
         result = get_json_path_value(data, json_path)
 
-        if not result.get("success"):
-            return result
-
         # Добавляем метаданные к результату
         return {
-            "data": data
+            "data": result
         }
 
     except Exception as e:
-        logger.error(f"read_json_file(): Критическая ошибка при обработке запроса: {e}")
+        logger.exception(f"read_json_file(): Критическая ошибка при обработке запроса: {e}")
         return {
             "data": None
         }
@@ -191,14 +183,17 @@ def read_json_file_array_size(file_path: str, json_path: str) -> Dict[str, Any]:
             return {
                 "success": False,
                 "data": None,
-                "error": result.get("error", "Неизвестная ошибка")
+                "error": result.get("error", "Массив не найден")
             }
 
         # Проверяем, что результат - список (массив)
         content = result.get("data")
+        logger.info(f"debug: {content}")
+
+
         if isinstance(content, list):
             array_size = len(content)
-            logger.info(f"Массив найден по jsonPath: {json_path}, размер массива: {array_size}")
+            logger.info(f"read_json_file_array_size(): Массив найден по jsonPath: {json_path}, размер массива: {array_size}")
             return {
                 "success": True,
                 "array_size": array_size
@@ -210,7 +205,7 @@ def read_json_file_array_size(file_path: str, json_path: str) -> Dict[str, Any]:
             }
 
     except Exception as e:
-        logger.error(f"read_json_file_array_size(): Критическая ошибка при обработке запроса: {e}")
+        logger.exception(f"read_json_file_array_size(): Критическая ошибка при обработке запроса: {e}")
         return {
             "success": False,
             "error": f"Критическая ошибка: {str(e)}"
@@ -263,7 +258,7 @@ def list_json_files(directory: str) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error(f"Ошибка при перечислении JSON-файлов: {e}")
+        logger.exception(f"Ошибка при перечислении JSON-файлов: {e}")
         return {
             "success": False,
             "error": f"Ошибка: {str(e)}",
