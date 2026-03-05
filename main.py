@@ -98,8 +98,7 @@ def get_json_path_value(data: Dict[str, Any], json_path: str) -> Any:
             return None
         
         # Возвращаем массив всех совпадений
-        # result = [match.value for match in matches] # возвращаем МАССИВ найденных результатов !
-        result = matches[0].value # возвращаем ПЕРВЫЙ из найденных результатов !
+        result = [match.value for match in matches] # возвращаем МАССИВ найденных результатов !
         logger.info(f"get_json_path_value(): Успешно получены значения по jsonPath: {json_path}, count: {len(result)}")
         return result
 
@@ -187,7 +186,7 @@ def read_json_file_array_size(file_path: str, json_path: str) -> Dict[str, Any]:
             }
 
         # Проверяем, что результат - список (массив)
-        content = result.get("data")
+        content = result.get("data")[0] # т.к. get_json_path_value возвращает массив, то надо взять из него первый элемент (= цеелвой массив, длину которого надо посчитать)
         logger.info(f"debug: {content}")
 
 
